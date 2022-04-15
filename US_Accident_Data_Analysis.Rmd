@@ -1,0 +1,493 @@
+---
+title: "US Accident Data Analysis"
+author: "Mindy CY Hu"
+date: "3/3/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Visualization and Discovery section
+
+```{r}
+library(pastecs)
+#Let us read a file to use this package
+US_accident <- read.table("US_Accidents_Dec20_updated.csv", sep=",", header = T, fill = T) 
+summary(US_accident)
+```
+```{r}
+library(dplyr)
+library(tidyverse)
+library(readr)
+df <- read_csv("US_Accidents_Dec20_updated.csv", col_types = cols(.default = col_character())) %>% 
+type_convert()
+#Description, Street, Side, City, County, State, Zipcode, country, Timezone, Airport_Code
+
+head(df)
+```
+```{r}
+summary(df)
+```
+
+
+
+```{r}
+str(df)
+#1,516,064 × 47
+(colMeans(is.na(df)))*100
+#Number, 69.000715009 
+#Wind_Chill(F) 29.637007409
+#Precipitation(in) 33.675952994 
+```
+
+```{r}
+my_data <- df[ , c("Severity", "Start_Time", "End_Time", "Temperature(F)", "Humidity(%)", "Visibility(mi)", "Wind_Speed(mph)", "Start_Lat", "Start_Lng", "Zipcode", "Pressure(in)", "Junction", "Sunrise_Sunset", "Distance(mi)", "Wind_Chill(F)", "Wind_Direction", "Precipitation(in)", "State")]   
+library(pastecs)
+stat.desc(my_data)
+```
+```{r histogram}
+library(tidyr)
+library(ggplot2)
+library(KernSmooth)
+library(purrr)
+library(dplyr)
+options(scipen=999)
+hist(my_data$'Severity', 
+     breaks=seq(0,5,1),
+     col="brown1",
+     main="Histogram of Severity",
+     xlab="Severity",
+     ylab="Frequency", 
+     xlim=c(0,4)
+     )
+
+hist(my_data$'Start_Time', 
+     breaks = 40,
+     col="goldenrod1",
+     main="Histogram of Start_Time",
+     xlab="Start_Time",
+     ylab="Frequency", 
+     )
+
+hist(my_data$'End_Time', 
+     breaks = 40,
+     col="burlywood1",
+     main="Histogram of End_Time",
+     xlab="End_Time",
+     ylab="Frequency", 
+     )
+
+hist(my_data$'Temperature(F)', 
+     breaks=40, 
+     col="cornflowerblue",
+     main="Histogram of Temperature", 
+     xlab="Temperature (Deg. F)", 
+     ylab="Frequency", 
+     font.main = 3 
+     )
+
+hist(my_data$'Humidity(%)', 
+     breaks=40,
+     col="lightblue",
+     main="Histogram of Humidity",
+     xlab="Humidity(%)",
+     ylab="Frequency", 
+     )
+
+hist(my_data$'Visibility(mi)', 
+     breaks=40,
+     col="azure4",
+     main="Histogram of Visibility",
+     xlim=c(0,150),
+     xlab="Visibility(mi)",
+     ylab="Frequency", 
+     )
+
+hist(my_data$'Wind_Speed(mph)', 
+     breaks=40,
+     col="coral",
+     main="Histogram of Wind_Speed",
+     xlab="Wind_Speed(mph)",
+     ylab="Frequency", 
+     )
+
+hist(my_data$'Pressure(in)', 
+     breaks=40,
+     col="aquamarine3",
+     main="Histogram of Pressure",
+     xlab="Pressure(in)",
+     ylab="Frequency", 
+     )
+
+hist(my_data$'Distance(mi)', 
+     breaks=40,
+     col="darkorchid1",
+     main="Histogram of Distance",
+     xlab="Distance(mi)",
+     ylab="Frequency", 
+     )
+
+hist(my_data$"Wind_Chill(F)", 
+     breaks=40,
+     col="darkseagreen1",
+     main="Histogram of Wind_Chill",
+     xlab="Wind_Chill(F)",
+     ylab="Frequency", 
+     )
+
+hist(my_data$"Precipitation(in)", 
+     breaks=40,
+     col="slategray1",
+     main="Histogram of Precipitation",
+     xlab="Precipitation(in)",
+     ylab="Frequency", 
+     )
+
+S1 <- my_data %>% 
+  group_by(Wind_Direction) %>%
+  summarise(n = n())
+S1
+options(scipen=999)
+ggplot(S1, aes(x=S1$Wind_Direction, y=S1$n)) + geom_bar(stat="identity", position = position_dodge(width=2)) + 
+  labs(x="Wind_Direction", y="Frequency")
+
+S2 <- my_data %>% 
+  group_by(State) %>%
+  summarise(n = n())
+S2
+options(scipen=999)
+ggplot(S2, aes(x=S2$State, y=S2$n)) + geom_bar(stat="identity", position = position_dodge(width=2)) + 
+  labs(x="State", y="Frequency")
+
+
+```
+```{r}
+library(rgdal)
+library(shiny)
+library(purrr)
+library(usmap)
+library(ggplot2)
+
+
+```
+
+
+```{r}
+library(dplyr)
+my_data %>% select(Start_Time, End_Time) %>% head(5)
+```
+
+```{r}
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+accidents_time <- my_data %>%
+  mutate(Duration = as.numeric(End_Time - Start_Time)) %>%
+  filter(!(Duration < 0)) %>%
+  separate(Start_Time, into = c("Date", "Time"), sep = " ") %>%
+  mutate("Year" = str_sub(Date, 1, 4), "Month" = str_sub(Date, 6, 7), 
+         "Day" = str_sub(Date, 9, 10), "Wday" = as.character(wday(Date)), 
+         "Hour" = str_sub(Time, 1, 2)) %>%
+  select(-c("Date", "Time", "End_Time")) %>%
+  select(Severity, Year, Month, Day, Hour, Wday, Duration)
+head(accidents_time)
+```
+
+
+```{r Hour}
+library(ggplot2)
+accidents_happenHour <- accidents_time %>% count(Hour)
+accidents_happenHour
+p <- ggplot(accidents_happenHour, aes(Hour, n))
+p + geom_point(aes(color = n)) + labs(x = "Hour of a day", y = "Number of accidents")
+```
+
+
+```{r}
+accidents_severity <- accidents_time %>%
+    group_by(Hour) %>%
+    summarise(mean(Severity))
+accidents_severity
+
+accident_summary <- merge(accidents_happenHour, accidents_severity)
+accident_summary <- accident_summary %>% rename(Average_Severity = "mean(Severity)")
+accident_summary
+options(scipen=999)
+ggplot(data = accident_summary) + 
+  geom_col(mapping=aes(x=Hour, y=n, fill=Average_Severity)) +
+    scale_fill_distiller(palette="Reds", trans= "reverse") +
+    labs(
+        title = "Amount and Severity of Car Accidents by hour",
+        x = "Houro of a day",
+        y = "Number of accidents",
+        caption = "A Countrywide Traffic Accident Dataset, 2016-2020.",
+        fill = "Average Severity") +
+    scale_y_continuous(expand = expansion(mult = c(0, .1)))
+```
+
+
+```{r Wday}
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+accidents_day <- accidents_time %>% count(Wday)
+accidents_day
+options(scipen=999)
+p <- ggplot(accidents_day, aes(Wday, n))
+p + geom_point(aes(color = n))+ 
+  labs(x = "Day of a week", y = "Amount of accidents")
+  
+```
+
+```{r}
+accidents_severity_day <- accidents_time %>%
+    group_by(Wday) %>%
+    summarise(mean(Severity))
+accidents_severity_day
+
+accident_summary2 <- merge(accidents_day, accidents_severity_day)
+accident_summary2 <- accident_summary2 %>% rename(Severity_mean = "mean(Severity)")
+accident_summary2
+options(scipen=999)
+ggplot(data = accident_summary2) + 
+  geom_col(mapping=aes(x=Wday, y=n, fill=Severity_mean)) +
+    scale_fill_distiller(palette="Blues", trans= "reverse") +
+    labs(
+        title = "Car Accidents each Day of the Week",
+        x = "Day of the week",
+        y = "Number of accidents",
+        caption = "A Countrywide Traffic Accident Dataset, 2016-2020.",
+        fill = "Severity_mean") +
+    scale_y_continuous(expand = expansion(mult = c(0, .1)))
+```
+
+```{r year}
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+accidents_year <- accidents_time %>% count(Year)
+accidents_year
+options(scipen=999)
+p <- ggplot(accidents_year, aes(Year, n))
+p + geom_point(aes(color = n)) + labs(x = "Year", y = "Amount of accidents")
+```
+
+```{r}
+accidents_severity_year <- accidents_time %>%
+    group_by(Year) %>%
+    summarise(mean(Severity))
+accidents_severity_year
+options(scipen=999)
+accident_summary3 <- merge(accidents_year, accidents_severity_year)
+accident_summary3 <- accident_summary3 %>% rename(Severity_mean_year = "mean(Severity)")
+accident_summary3
+
+ggplot(data = accident_summary3) + 
+  geom_col(mapping=aes(x=Year, y=n, fill=Severity_mean_year)) +
+    scale_fill_distiller(palette="Purples", trans= "reverse") +
+    labs(
+        title = "Car Accidents from 2016 to 2020",
+        x = "Year",
+        y = "Amount of accidents",
+        caption = "A Countrywide Traffic Accident Dataset, 2016-2020.",
+        fill = "Severity_mean_year") +
+    scale_y_continuous(expand = expansion(mult = c(0, .1)))
+```
+
+
+```{r month}
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+accidents_month <- accidents_time %>% count(Month)
+accidents_month
+options(scipen=999)
+p <- ggplot(accidents_month, aes(Month, n))
+p + geom_point(aes(color = n)) + labs(x = "Month", y = "Amount of accidents")
+```
+
+```{r}
+accidents_severity_month <- accidents_time %>%
+    group_by(Month) %>%
+    summarise(mean(Severity))
+accidents_severity_month
+options(scipen=999)
+accident_summary4 <- merge(accidents_month, accidents_severity_month)
+accident_summary4 <- accident_summary4 %>% rename(Severity_mean_month = "mean(Severity)")
+accident_summary4
+
+ggplot(data = accident_summary4) + 
+  geom_col(mapping=aes(x=Month, y=n, fill=Severity_mean_month)) +
+    scale_fill_distiller(palette="Oranges", trans= "reverse") +
+    labs(
+        title = "Car Accidents by Month",
+        x = "Month",
+        y = "Amount of accidents",
+        caption = "A Countrywide Traffic Accident Dataset, 2016-2020.",
+        fill = "Severity_mean_month") +
+    scale_y_continuous(expand = expansion(mult = c(0, .1)))
+```
+
+
+
+```{r}
+library(ggplot2)
+library(wordcloud)
+library(RColorBrewer)
+library(wordcloud2)
+library(tm)
+
+accidents_weather <- df %>% count(Weather_Condition)
+accidents_weather
+
+text <- df$Weather_Condition
+docs <- Corpus(VectorSource(text))
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df_weather <- data.frame(word = names(words),freq=words)
+set.seed(1234)
+wordcloud(words = df_weather$word, freq = df_weather$freq, min.freq = 1,           
+          max.words=200, random.order=FALSE, rot.per=0.35,colors=brewer.pal(8, "Set2"))
+```
+
+```{r}
+library(maps)
+library(usmap)
+library(ggplot2)
+library(patchwork)
+
+US <- map_data('state')
+head(US)
+
+
+ggplot()+
+  geom_map(data = US, map = US, mapping = aes( map_id = region, x = long, y = lat, group = group), color = "darkgray", fill = "white", size = 0.5) +
+  geom_point(data = df, mapping=aes(x = Start_Lng, y = Start_Lat, color = Severity), size = 0.005)+
+  labs(title = "US Traffic Accidents",
+       subtitle = "Source: A Countrywide Traffic Accident Dataset, 2016-2020.") +
+  theme(legend.position = "right")
+
+```
+
+
+# Poisson Regression Model
+
+
+```{r cars}
+
+data = read.csv("US_Accidents_Dec20_filled.csv")
+
+
+
+library(dplyr)
+
+head(data)
+
+```
+
+
+
+```{r}
+library(dplyr)
+test_group <- data %>%
+  group_by(State, Wday) %>%
+  summarize(
+    avg_temp = mean(Temperature.F.),
+    avg_hum = mean(Humidity...),
+    avg_wind = mean(Wind_Chill.F.),
+    avg_pressure = mean(Pressure.in.),
+    avg_precipitation = mean(Precipitation.in.),
+    avg_distance = mean(Distance.mi.),
+    avg_sev = mean(Severity),
+    count = n()
+  )
+test_group
+
+```
+
+```{r}
+library(MASS)
+#test_group$weekday <- factor(nyc_bikes$weekday, levels=c('Sunday', 
+#'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'))
+boxplot(count~Wday, xlab="Weekday", ylab="Count", data=test_group)
+boxplot(count~State, xlab="State", ylab="Count", data=test_group)
+car_quant=data.frame(test_group[c('avg_temp','avg_hum','avg_wind', 'avg_pressure', 'avg_precipitation', 'avg_distance','avg_sev','count')])
+plot(car_quant)
+mdl1 <- glm(count~., family="poisson", data=test_group)
+summary(mdl1)
+coef(mdl1)
+
+```
+
+
+# RF Model Section
+
+
+```{r}
+
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(maps)
+library(caret)
+library(zoo)
+library(party)
+library(randomForest)
+```
+
+
+
+```{r}
+accidents <-read.csv("US_Accidents_Dec20_filled.csv")
+head(accidents)
+str(accidents)
+dim(accidents)
+accidents$Severity = as.factor(accidents$Severity)
+
+```
+
+```{r}
+accidents = accidents[-c(12,64,65)]
+
+accidents2 <- sample(1:nrow(accidents), 50000, replace = FALSE)
+accidents2 <- accidents[accidents2, ]
+trainingIndices <- createDataPartition(accidents2$Severity, p = 0.7, list = FALSE)
+training <- accidents2[trainingIndices, ]
+testing <- accidents2[-trainingIndices, ]
+
+head(accidents)
+set.seed(1991)
+rf <-randomForest(Severity~.,data=training, ntree=500)
+print(rf)
+floor(sqrt(ncol(training) - 1))
+```
+```{r}
+mtry <- tuneRF(training[-1],training$Severity, ntreeTry=500,
+stepFactor=1.5,improve=0.01, trace=TRUE, plot=TRUE)
+best.m <- mtry[mtry[, 2] == min(mtry[, 2]), 1]
+print(mtry)
+print(best.m)
+```
+
+
+```{r}
+set.seed(1991)
+rf <-randomForest(Severity~.,data=training, mtry=best.m, importance=TRUE,ntree=500)
+print(rf)
+#Evaluate variable importance
+importance(rf)
+varImpPlot(rf)
+```
