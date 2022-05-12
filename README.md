@@ -1,6 +1,6 @@
 # US-Accident-Data-Analysis(R language)
-A Countrywide Traffic Accident Dataset Used to Predict Severity of Accidents
+--Analyzed USA car accidents collected in real-time by multiple traffic APIs to resolve the 1.5 million records traits.
 
--- This dataset contains countrywide car accidents among 49 states of the USA which are collected in real-time from February 2016 to December 2020 by using multiple Traffic APIs.
+--Implemented data cleaning, data analysis and visualization, models training and fine tuning for prediction of accidents severity.
 
--- 1,516,064 instances and 47 columns.
+--Assessed the prediction performance of RF model by OOB error and the estimated error rate is 14.26%.
